@@ -17,11 +17,11 @@ jobs:
       - name: Install browser
         run: |
           npm install --no-save playwright pngjs
-          npx playwright install --with-deps chromium
+          npx playwright install --with-deps chromium webkit
       - name: Visit published demo and detect first frame
         run: |
           node <<'JS'
-          const { chromium } = require('playwright');
+          const { chromium, webkit } = require('playwright');
           const { PNG } = require('pngjs');
           const fs = require('fs');
           (async () => {
@@ -41,12 +41,39 @@ jobs:
             console.log('VISUAL COLORS:',colors.size);
             console.log('BROWSER STATE:',JSON.stringify(state));
             console.log('BROWSER ERRORS:',JSON.stringify(errs));
+            if(state.overlay||!state.flutter||colors.size<8){console.error('FAIL: blank or missing Flutter UI');process.exitCode=1;}
+            await page.mouse.click(630,403);
+            await page.waitForTimeout(1500);
+            await page.screenshot({path:'dojo-registration.png',fullPage:true});
+            const next=PNG.sync.read(fs.readFileSync('dojo-registration.png'));
+            let changed=0;
+            for(let y=30;y<Math.min(next.height,img.height);y+=8)for(let x=200;x<Math.min(next.width,img.width)-200;x+=8){
+              let i=(img.width*y+x)*4,j=(next.width*y+x)*4;
+              if(Math.abs(img.data[i]-next.data[j])+Math.abs(img.data[i+1]-next.data[j+1])+Math.abs(img.data[i+2]-next.data[j+2])>70)changed++;
+            }
+            console.log('REGISTRATION CLICK CHANGED SAMPLES:',changed);
+            if(changed<100){console.error('FAIL: registration button did not change screen');process.exitCode=1;}
             await browser.close();
-            if(state.overlay||!state.flutter||colors.size<8){console.error('FAIL: blank/monochrome page or missing Flutter UI');process.exitCode=1;}
+            const safari=await webkit.launch({headless:true});
+            const safariPage=await safari.newPage({viewport:{width:1280,height:800}});
+            const safariErrors=[];
+            safariPage.on('pageerror',e=>safariErrors.push(e.message));
+            await safariPage.goto('https://soimiidobrogeni-netizen.github.io/dojo-torii-demo/',{waitUntil:'domcontentloaded',timeout:60000});
+            await safariPage.waitForTimeout(18000);
+            await safariPage.screenshot({path:'dojo-webkit.png',fullPage:true});
+            const wi=PNG.sync.read(fs.readFileSync('dojo-webkit.png'));
+            const wc=new Set();
+            for(let y=0;y<wi.height;y+=12)for(let x=0;x<wi.width;x+=12){let n=(wi.width*y+x)*4;wc.add([wi.data[n]>>4,wi.data[n+1]>>4,wi.data[n+2]>>4].join(','));}
+            console.log('WEBKIT VISUAL COLORS:',wc.size,'ERRORS:',JSON.stringify(safariErrors));
+            await safari.close();
+            if(wc.size<8||safariErrors.length){console.error('FAIL: WebKit blank page or JS errors');process.exitCode=1;}
           })().catch(e=>{console.error(e);process.exitCode=1});
           JS
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: dojo-browser-screenshot
-          path: dojo-browser.png
+          path: |
+            dojo-browser.png
+            dojo-registration.png
+            dojo-webkit.png
