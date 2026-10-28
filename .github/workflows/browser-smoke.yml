@@ -16,12 +16,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install browser
         run: |
-          npm install --no-save playwright
+          npm install --no-save playwright pngjs
           npx playwright install --with-deps chromium
       - name: Visit published demo and detect first frame
         run: |
           node <<'JS'
           const { chromium } = require('playwright');
+          const { PNG } = require('pngjs');
+          const fs = require('fs');
           (async () => {
             const browser = await chromium.launch({headless: true});
             const page = await browser.newPage({viewport:{width:1280,height:800}});
@@ -33,10 +35,14 @@ jobs:
             await page.waitForTimeout(18000);
             await page.screenshot({path:'dojo-browser.png',fullPage:true});
             const state=await page.evaluate(()=>({title:document.title,body:document.body.innerText.slice(0,800),flutter:!!document.querySelector('flutter-view,flt-glass-pane'),overlay:!!document.getElementById('diag')}));
+            const img=PNG.sync.read(fs.readFileSync('dojo-browser.png'));
+            const colors=new Set();
+            for(let y=0;y<img.height;y+=12){for(let x=0;x<img.width;x+=12){const n=(img.width*y+x)*4;colors.add([img.data[n]>>4,img.data[n+1]>>4,img.data[n+2]>>4].join(','));}}
+            console.log('VISUAL COLORS:',colors.size);
             console.log('BROWSER STATE:',JSON.stringify(state));
             console.log('BROWSER ERRORS:',JSON.stringify(errs));
             await browser.close();
-            if(state.overlay||!state.flutter)process.exitCode=1;
+            if(state.overlay||!state.flutter||colors.size<8){console.error('FAIL: blank/monochrome page or missing Flutter UI');process.exitCode=1;}
           })().catch(e=>{console.error(e);process.exitCode=1});
           JS
       - uses: actions/upload-artifact@v4
