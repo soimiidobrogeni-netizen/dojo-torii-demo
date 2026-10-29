@@ -1,0 +1,18 @@
+{
+  "name": "Kudo-Romania",
+  "short_name": "Kudo-Romania",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#172338",
+  "theme_color": "#172338",
+  "description": "Aplicația Kudo-Romania — antrenamente, grade și Dojo digital",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "icons/Icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
